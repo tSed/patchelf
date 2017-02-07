@@ -1,0 +1,76 @@
+RPATH fixing
+
+Summary of the discussion with Yann E. MORIN during BRDD, ELC-E Berlin 2016,
+on 2016/10/16, from the picture IMG_20161016_163750.jpg.
+
+with fall through: |     host    |               target             | patchelf action
+===================+=============+==================================+================
+$ORIGIN/*          | keep as-is  | keep as-is                       | --allowed-rpath-prefixes
+$(HOST_DIR)/*      | keep as-is  | n/a                              |
+$(STAGING_DIR)/*   | n/a         | fix: s:$(STAGING_DIR)::          | --substitute-rpath-prefix=pattern:replacement
+$(BUILD_DIR)/*     | drop        | drop                             | --forbid-rpath-prefixes (TBChecked if default behavior)
+/usr/lib or /lib   | drop        | drop                             | --forbid-rpath-prefixes (TBChecked if default behavior)
+/any/path          | keep + warn | if $(TARGET_DIR)/any/path exists |
+                   |             |   keep as-is
+                   |             | else
+                   |             |   keep + warn
+*                  | keep + warn | keep + warn
+
+
+
+Notes:
+* Case n/a means "ignore this case and go try the next pattern".
+* Except for target /some/path, there is no check at all whether the fully
+  resolved path exists or not.
+
+
+host-package
+------------
+
+case:                 | what we said | patchelf behavior (shrink)
+======================+==============+===========================================
+$ORIGIN/*             | keep         | always kept
+$(HOST_DIR)/*         | keep         | kept if passed to --allowed-rpath-prefixes
+$($(PKG)_DIR)/*       | drop         | n/a [TODO: always removed]
+/usr/lib, /lib        | drop         | n/a [TODO: always removed]
+*                     | keep + warn  | kept if DT_NEEDED in there, removed oterwise (rpath order matter) [TODO: always kept, but warn about]
+
+TODO:
+- add --forbid-rpath-prefixes option (drop case)
+- add --preservative-shrink (kept + warn)
+- add --relative-rpath [BASE_DIR]
+
+=> Q°: move "kept + warn" rpath at the end?
+
+target-package
+--------------
+
+case:                 | what we said | patchelf behavior (shrink)
+======================+==============+===========================================
+$ORIGIN/*             | keep         | always kept
+$(TARGET_DIR)/*       | keep         | kept if --allowed-rpath-prefixes [TODO: s/$(TARGET_DIR)//]
+$(STAGING_DIR)/*      | keep         | n/a [TODO: kept with s/$(STAGING_DIR)//]
+$($(PKG)_DIR)/*       | drop         | n/a [TODO: always removed]
+/usr/lib, /lib        | drop         | n/a [TODO: always removed]
+*                     | keep + warn  | kept if DT_NEEDED in there, removed oterwise (rpath order matter) [TODO: always kept, but warn about]
+
+
+TODO:
+- all from host
+- add --substitute-rpath-prefixes PATTERN:REPLACEMENT option (can be set several times)
+
+=> Q°: is PATTERN (from --substitute-rpath-prefixes) automatically added to the allowed prefixes?
+=> Q°: order of the filter/substitution? which first?
+
+Todo:
+- extend/customize the --allowed-rpath-prefixes options to meet our use cases.
+- upstream the patch
+
+
+Implementation filters:
+- input_path, pattern, formater
+
+
+
+
+- input_path, vector<output_rpath>
